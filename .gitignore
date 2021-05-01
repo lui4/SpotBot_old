@@ -1,0 +1,8 @@
+/.idea
+/spotbot/__pycache__
+/data/chrome_profiles/*
+/spotbot/cookie_generator/__pycache__
+/spotbot/utils/__pycache__
+/spotbot/spotify_bot_instance/__pycache__
+/spotbot/spotify_bot_instance/signals/__pycache__
+/spotbot/utils__pycache__

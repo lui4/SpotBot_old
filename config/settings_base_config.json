@@ -1,0 +1,12 @@
+{
+  "send_webhook_after_finish": true,
+  "time_between_discord_notifications": 1000000,
+  "discord_webhook": "",
+  "threads_per_core": 6,
+  "thread_delay": 5,
+  "core_delay": 5,
+  "allow_monitoring": true,
+  "check_proxies": true,
+  "proxy_checking_threads": 10,
+  "proxy_checking_timeout": 10
+}
