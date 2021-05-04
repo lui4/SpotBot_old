@@ -198,6 +198,14 @@ class SeleniumHelper(ModifiedActionChain):
             return True
         return False
 
+    def navigate_to_explore_page(self):
+        try:
+            explore_btn = self.find_element_by_xpath("//a[@href='/search']")
+            self.click(element=explore_btn)
+            return True
+        except WebDriverException:
+            return False
+
 
 if __name__ == '__main__':
     pass

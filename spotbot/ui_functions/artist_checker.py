@@ -126,6 +126,10 @@ class WorkerSignals(QObject):
 
 class ArtistNameGetter(QRunnable):
     def __init__(self, driver, artist_link):
+        """
+
+        :rtype: object
+        """
         super(ArtistNameGetter, self).__init__()
         self.driver = driver
         self.artist_link = artist_link

@@ -8,7 +8,8 @@ from PyQt5.QtCore import QPropertyAnimation, QTime
 from PyQt5.QtWidgets import QTableWidgetItem, QFileDialog
 from colorama import Fore
 from pymongo import MongoClient
-from selenium import webdriver
+import undetected_chromedriver as uc
+
 
 from spotbot.ui_functions.streaming_account_functions import StreamingAccountCreator
 from spotbot.utils.format import CommandLineStyling
@@ -383,13 +384,13 @@ class ArtistsPage:
 
     @staticmethod
     def _setup_basic_driver():
-        options = webdriver.ChromeOptions()
+        options = uc.ChromeOptions()
         options.add_argument("--headless")
         options.add_experimental_option('excludeSwitches', ['enable-logging'])
-        return webdriver.Chrome(executable_path="./drivers/chromedriver.exe", options=options)
+        return uc.Chrome(executable_path="C:/Users/luis/PycharmProjects/spotbot/driver/chromedriver/chromedriver_89.exe", options=options)
 
     def upload_botting_links(self, parent):
-        from ArtistsInterpreter import ArtistInterpreter
+        from spotbot.ui_functions.artist_checker import ArtistInterpreter
         dialog = QFileDialog()
         botting_links_path = dialog.getOpenFileName(None, "Import TEXT", "", "TEXT Artist Songs (*.txt)")
 
@@ -481,7 +482,7 @@ class ArtistsPage:
             parent.artist_table.setItem(index, 4, streams_item)
 
     def add_artist(self, parent):
-        from ArtistsInterpreter import ArtistNameGetter
+        from spotbot.ui_functions.artist_checker import ArtistNameGetter
         artist_link = parent.artist_link.text()
 
         if not artist_link:
