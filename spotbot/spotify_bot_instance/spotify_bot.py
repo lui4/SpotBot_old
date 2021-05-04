@@ -41,6 +41,9 @@ def requires_account_log_in(requires):
 
 
 def requires_specific_route(route):
+    """This decorator takes a list or a string of route/s and will naviagte to one of them to be on the right link
+    before the method gets called."""
+
     def inner(method):
         def _inner(cls, *args, **kwargs):
             target_route = route if isinstance(route, str) else random.choice(route)
@@ -84,36 +87,53 @@ class SpotifyBotInstance:
 
     @property
     def email(self):
+        """Getter for easier account email access"""
         return self.account_meta_dict["account"].split(":", 1)[0]
 
     @property
     def password(self):
+        """Getter for easier account password accesss"""
         return self.account_meta_dict["account"].split(":", 1)[1]
 
     @staticmethod
     def setup_driver():
+        """Sets up the driver
+        :return: webdriver instance"""
         options = undetected_chromedriver.ChromeOptions()
         options.add_experimental_option('w3c', False)
         return undetected_chromedriver.Chrome(options=options,
                                               executable_path="../../driver/chromedriver/chromedriver_89.exe")
 
     def initialization(self):
+        """Gets called after the self.login() and makes sure that the playback gets stopped and reseted.
+        :return:None
+        """
         self.actions.navigate_to_weplayer_from_overview_page()
-        time.sleep(5)
+        time.sleep(random.randint(1, 2))
         self.reset_playback()
+        time.sleep(random.randint(1, 2))
+        self.click_playback_btn(stop_playback=True)
 
-    def calculate_track_seconds(self):
+    def calculate_total_track_seconds(self):
+        """Calculates the total seconds of playltime of the current playing track without respect to the lost time"""
         time_element = self.actions.find_element_by_xpath("//div[@data-testid='playback-duration']")
         return int(time_element.text.split(":")[0]) * 60 + int(time_element.text.split(":")[1])
 
-    def calclulate_random_listening_time(self, track_total_seconds, lost_sleep_time):
+    def calculate_total_already_played_track_seconds(self):
+        """Calculates the already listened seconds of a song"""
+        time_element = self.actions.find_element_by_xpath("//div[@data-testid='playback-position']").text.split(":")
+        print(f"Already lost sleep time: {int(time_element[0]) * 60 + int(time_element[1])}")
+        return int(time_element[0]) * 60 + int(time_element[1])
+
+    def calclulate_random_listening_time(self, track_total_seconds):
         """
-        Different from SpotifyBotInstance.calculate_track_seconds(), since this calculates the track listening seconds
-        with a random factor, so that
-        :param track_total_seconds:
-        :param lost_sleep_time:
-        :return:
+        Different from SpotifyBotInstance.calculate_total_track_seconds(), since this calculates the track listening seconds
+        with a random factor, so that the bot listens a random time to the songs.
+        :param track_total_seconds: Total length of the tracks in seconds
+        :return: play_not_full_song, sleep_time
         """
+        lost_sleep_time = self.calculate_total_already_played_track_seconds()
+
         if is_random(random.randint(10, 20)):
             sleep_time = (track_total_seconds * random.randint(3, 9) / 10) - lost_sleep_time
 
@@ -131,7 +151,11 @@ class SpotifyBotInstance:
         return play_not_full_song, sleep_time
 
     def accept_cookies(self):
+        """Accepts cookies when they appear
+        :return: if the cookies got accepted (True/False)
+        """
         accept_cookie_btn = self.actions.find_element_by_xpath("//button[@id='onetrust-accept-btn-handler']")
+
         if accept_cookie_btn is not None:
             self.actions.click(element=accept_cookie_btn)
             return True
@@ -139,6 +163,9 @@ class SpotifyBotInstance:
             return False
 
     def choose_random_playlist(self):
+        """Picks a random playlist from the synchronized playlists
+        :return: None if error occured and a random playlist if not
+        """
         accounts_playlist = self.account_meta_dict["playlist"]["playlists"]
 
         if not accounts_playlist:
@@ -147,6 +174,11 @@ class SpotifyBotInstance:
         return random.choice(accounts_playlist)
 
     def debugged_print(self, msg, status, only_debug=False):
+        """Defines the output of the application and is used as a switch for the print messages between development
+        (only_debug=True) and production (only_debug=False).
+        :return: None
+        """
+
         if not self.debug and not only_debug:
             self.print_to_gui.add_message(status=status, message=msg)
         else:
@@ -160,10 +192,14 @@ class SpotifyBotInstance:
         self.actions.click(element=song_skip_element)
 
     def wait_for_advertisement_to_finish(self):
+        """Checks for advertisement and if it exists it will listen to it.
+        :return:bool wheter the action was performed successfully or not
+        """
         advertisement = self.actions.find_element_by_xpath(
             "//div[@class='cover-art shadow cover-art--with-auto-height']", timeout=4)
+
         if advertisement is not None:
-            time.sleep(self.calculate_track_seconds())
+            time.sleep(self.calculate_total_track_seconds() - self.calculate_total_already_played_track_seconds())
             self.event_queue.put(ThreadSignals.LISTENED_TO_AD)
             self.debugged_print(msg=f"Account {self.email} > Listened to ad", status="INFO")
             time.sleep(random.randint(3, 4))
@@ -172,6 +208,11 @@ class SpotifyBotInstance:
             return False
 
     def adjust_playback(self, set_playback_volume=None):
+        """
+        Adjusts the playback volume to a given or random value.
+        :param set_playback_volume: caller defines the playback volume
+        :return: bool indicating if an error occurred or not
+        """
         if set_playback_volume is None:
             set_playback_volume = random.randint(1, 10) * 10
 
@@ -762,10 +803,9 @@ class SpotifyBotInstance:
             if is_random(random.randint(5, 12)):
                 self.adjust_playback()
 
-            play_not_full_song, sleep_time = self.calclulate_random_listening_time(
-                track_total_seconds=self.calculate_track_seconds(),
-                lost_sleep_time=round(time.time() - iteration_start_time))
+            play_not_full_song, sleep_time = self.calclulate_random_listening_time(track_total_seconds=self.calculate_total_track_seconds())
             time.sleep(sleep_time)
+            print("Finished the sleep")
 
             if play_not_full_song:
                 self.skip_song()
@@ -895,7 +935,6 @@ if __name__ == '__main__':
                                   event_queue=queue, parent=None, thread_id=1, debug=True, song_skipping_chance=10)
     instance.login()
     instance.initialization()
-    instance.create_playlist()
     instance.listen_to_random_playlist()
     instance.listen_to_random_playlist()
     instance.listen_to_random_playlist()
