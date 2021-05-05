@@ -65,6 +65,8 @@ class StreamingAccountCreator(QRunnable):
                  "only_play_embedded": self._generate_only_play_embedded(),
                  "listen_to_podcast": self._generate_listen_to_podcast(),
                  "incognito": self._generate_incognito(),
+                 "account_plan": "",
+                 "allow_earlier_stopping": True,  # let the user define this probability
                  "account_status": "Working",
                  }
         query["artists"] = self._generate_artists(query["only_play_embedded"])
@@ -72,7 +74,7 @@ class StreamingAccountCreator(QRunnable):
             return False
 
         if not query["incognito"]:
-            GenerateFootprint().generate_footprint(cookie_amount, account.split(":")[0])
+            GenerateFootprint(cookie_amount, account.split(":")[0]).generate_footprint()
 
         self.meta_col.insert_one(query)
         return True
@@ -122,8 +124,11 @@ class StreamingAccountCreator(QRunnable):
 
         random_number = random.randint(1, 100)
         if gender == "undefined" and random_number < 40:  # pick a random lgbtq song
-            favorite_song_data["genre"] = "lgbtq"
-            favorite_song_data["song"] = random.choice(self.configurations_document["favorite_songs"]["lgbtq"])
+            favorite_song_genre = "lgbtq"
+            favorite_song_meta = random.choice(self.configurations_document["favorite_songs"][favorite_song_genre])
+
+            favorite_song_data["song_name"] = favorite_song_meta["song"]
+            favorite_song_data["artist_name"] = favorite_song_meta["artist_name"]
 
             return favorite_song_data
 
@@ -131,9 +136,11 @@ class StreamingAccountCreator(QRunnable):
         if gender == "female" and random_number < 45:  # have a chance to listen to pop songs and other soft songs
             possible_genres = ["hip_hop", "k_pop", "rnb"]
 
-            favorite_song_data["genre"] = random.choice(possible_genres)
-            favorite_song_data["song"] = random.choice(
-                self.configurations_document["favorite_songs"][favorite_song_data["genre"]])
+            favorite_song_genre = random.choice(possible_genres)
+            favorite_song_meta = random.choice(self.configurations_document["favorite_songs"][favorite_song_genre])
+
+            favorite_song_data["song_name"] = favorite_song_meta["song"]
+            favorite_song_data["song_artist"] = favorite_song_meta["artist_name"]
 
             return favorite_song_data
 
@@ -141,9 +148,11 @@ class StreamingAccountCreator(QRunnable):
         if gender == "male" and random_number < 60:  # have a chance to listen to rap
             possible_genres = ["rap", "instrumental", "blues"]
 
-            favorite_song_data["genre"] = random.choice(possible_genres)
-            favorite_song_data["song"] = random.choice(
-                self.configurations_document["favorite_songs"][favorite_song_data["genre"]])
+            favorite_song_genre = random.choice(possible_genres)
+            favorite_song_meta = random.choice(self.configurations_document["favorite_songs"][favorite_song_genre])
+
+            favorite_song_data["song_name"] = favorite_song_meta["song"]
+            favorite_song_data["song_artist"] = favorite_song_meta["artist_name"]
 
             return favorite_song_data
 
@@ -151,16 +160,20 @@ class StreamingAccountCreator(QRunnable):
         if age > 30 and random_number < 25:
             possible_genres = ["50s", "60s", "70s", "80s", "90s", "2000s"]
 
-            favorite_song_data["genre"] = random.choice(possible_genres)
-            favorite_song_data["song"] = random.choice(
-                self.configurations_document["favorite_songs"][favorite_song_data["genre"]])
+            favorite_song_genre = random.choice(possible_genres)
+            favorite_song_meta = random.choice(self.configurations_document["favorite_songs"][favorite_song_genre])
+
+            favorite_song_data["song_name"] = favorite_song_meta["song"]
+            favorite_song_data["song_artist"] = favorite_song_meta["artist_name"]
 
             return favorite_song_data
 
         if not favorite_song_data:
-            favorite_song_data["genre"] = random.choice(list(self.configurations_document["favorite_songs"].keys()))
-            favorite_song_data["song"] = random.choice(
-                self.configurations_document["favorite_songs"][favorite_song_data["genre"]])
+            favorite_song_genre = random.choice(list(self.configurations_document["favorite_songs"].keys()))
+            favorite_song_meta = random.choice(self.configurations_document["favorite_songs"][favorite_song_genre])
+
+            favorite_song_data["song_name"] = favorite_song_meta["song"]
+            favorite_song_data["song_artist"] = favorite_song_meta["artist_name"]
 
         return favorite_song_data
 

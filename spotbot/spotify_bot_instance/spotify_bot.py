@@ -1,6 +1,7 @@
 import math
 import queue
 import random
+import sys
 import time
 
 import undetected_chromedriver
@@ -110,20 +111,22 @@ class SpotifyBotInstance:
         """
         self.actions.navigate_to_weplayer_from_overview_page()
         time.sleep(random.randint(1, 2))
+        self.click_playback_btn(stop_playback=True)
+        time.sleep(random.randint(1, 2))
         self.reset_playback()
         time.sleep(random.randint(1, 2))
-        self.click_playback_btn(stop_playback=True)
+        self.click_repeat_song_btn(1)
 
     def calculate_total_track_seconds(self):
         """Calculates the total seconds of playltime of the current playing track without respect to the lost time"""
         time_element = self.actions.find_element_by_xpath("//div[@data-testid='playback-duration']")
-        return int(time_element.text.split(":")[0]) * 60 + int(time_element.text.split(":")[1])
+        return math.ceil(int(time_element.text.split(":")[0]) * 60 + int(time_element.text.split(":")[1]))
 
     def calculate_total_already_played_track_seconds(self):
         """Calculates the already listened seconds of a song"""
         time_element = self.actions.find_element_by_xpath("//div[@data-testid='playback-position']").text.split(":")
         print(f"Already lost sleep time: {int(time_element[0]) * 60 + int(time_element[1])}")
-        return int(time_element[0]) * 60 + int(time_element[1])
+        return math.ceil(int(time_element[0]) * 60 + int(time_element[1]))
 
     def calclulate_random_listening_time(self, track_total_seconds):
         """
@@ -148,7 +151,7 @@ class SpotifyBotInstance:
         self.debugged_print(msg=f"Sleep time: {sleep_time}",
                             status="INFO", only_debug=True)
 
-        return play_not_full_song, sleep_time
+        return math.floor(play_not_full_song), abs(sleep_time)
 
     def accept_cookies(self):
         """Accepts cookies when they appear
@@ -226,36 +229,67 @@ class SpotifyBotInstance:
         playback_pixel = math.floor(playback_volume.size["width"] / 100 * set_playback_volume)
 
         if playback_pixel < int(playback_volume.size["width"] / 2):
-            playback_pixel = - int(playback_pixel / 2) * 10
+            playback_pixel = - int(playback_pixel / 2)
         elif playback_pixel == int(playback_volume.size["width"] / 2):
             playback_pixel = 0
         else:
             playback_pixel = int(playback_pixel / 2)
 
-        print(f"playback_pixel; {playback_pixel}; set_playback_volume: {set_playback_volume}")
         act.move_by_offset(playback_pixel, 0).click()
         act.perform()
-        self.debugged_print(msg=f"Successfully adjusted the playback to ~{set_playback_volume}%")
+        self.debugged_print(msg=f"Successfully adjusted the playback to ~{set_playback_volume}%", status="INFO", only_debug=True)
         return True
 
     def click_repeat_song_btn(self, repeat_times=1):
-        try:
-            repeat_element = WebDriverWait(self.driver, 20).until(
-                EC.element_to_be_clickable((By.XPATH, "//button[@data-testid='control-button-repeat']")))
-        except TimeoutException:
-            return False
+        repeat_element = self.actions.find_element_by_xpath("//button[@data-testid='control-button-repeat']")
+        if repeat_times is None:
+            return True
 
-        for _ in range(repeat_times):
-            self.actions.click(element=repeat_element)
-            time.sleep(random.randint(1, 3))
+        if repeat_element.get_attribute("aria-checked") == "mixed":
+            if repeat_times == 3:
+                return True
+            elif repeat_times == 1:
+                self.actions.click(element=repeat_element)
+            elif repeat_times == 2:
+                for _ in range(2):
+                    self.actions.click(element=repeat_element)
+                    time.sleep(random.randint(1, 2))
+            else:
+                raise ValueError(f"repeat_times must be in the range 0 < repeat_times <=3")
+            return True
 
-        return True
+        if repeat_element.get_attribute("aria-checked") == "false":
+            if repeat_times == 3:
+                for _ in range(2):
+                    self.actions.click(element=repeat_element)
+                    time.sleep(random.randint(1, 2))
+            elif repeat_times == 1:
+                return True
+            elif repeat_times == 2:
+                self.actions.click(element=repeat_element)
+            else:
+                raise ValueError(f"repeat_times must be in the range 0 < repeat_times <=3")
+            return True
+
+        if repeat_element.get_attribute("aria-checked") == "true":
+            if repeat_times == 3:
+                self.actions.click(element=repeat_element)
+            elif repeat_times == 1:
+                for _ in range(2):
+                    self.actions.click(element=repeat_element)
+                    time.sleep(random.randint(1, 2))
+            elif repeat_times == 2:
+                return True
+            else:
+                raise ValueError(f"repeat_times must be in the range 0 < repeat_times <=3")
+            return True
+
+        return False
 
     def click_shuffle_song_btn(self, toggle_on=True):
-        try:
-            shuffle_element = WebDriverWait(self.driver, 20).until(
-                EC.element_to_be_clickable((By.XPATH, "//button[@data-testid='control-button-shuffle']")))
-        except TimeoutException:
+        shuffle_element = self.actions.find_element_by_xpath("//button[@data-testid='control-button-shuffle']")
+
+        if shuffle_element is None:
             return False
 
         if toggle_on and shuffle_element.get_attribute('aria-checked') != "true":
@@ -264,29 +298,24 @@ class SpotifyBotInstance:
         if not toggle_on and shuffle_element.get_attribute('aria-checked') == "true":
             self.actions.click(element=shuffle_element)
 
-        time.sleep(random.randint(1, 3))
-
         return True
 
     def click_playback_btn(self, stop_playback=True):
-        try:
-            playback_btn = WebDriverWait(self.driver, 20).until(
-                EC.element_to_be_clickable((By.XPATH, "//button[@data-testid='control-button-play']")))
-        except TimeoutException:
-            try:
-                playback_btn = WebDriverWait(self.driver, 20).until(
-                    EC.element_to_be_clickable((By.XPATH, "//button[@data-testid='control-button-pause']")))
-            except TimeoutException:
-                return False
-
-        if stop_playback and playback_btn.get_attribute('aria-label') == "Pause":
+        print(sys._getframe().f_back.f_code.co_name)
+        playback_btn = self.actions.find_element_by_xpath("//button[@data-testid='control-button-play']")
+        if playback_btn is not None and not stop_playback:
+            print("Continued the playback")
             self.actions.click(element=playback_btn)
-        elif not stop_playback and playback_btn.get_attribute('aria-label') == "Play":
+            return True
+
+        playback_btn = self.actions.find_element_by_xpath("//button[@data-testid='control-button-pause']")
+        if playback_btn is not None and stop_playback:
+            print("Stopped the playback")
             self.actions.click(element=playback_btn)
+            return True
 
-        time.sleep(random.randint(1, 3))
-
-        return True
+        print("Failed to stop/continue the playback")
+        return False
 
     def is_target_song(self, artist_name, song_name):
         if artist_name in self.account_meta_dict["artists"]:
@@ -295,7 +324,8 @@ class SpotifyBotInstance:
                                 status="SUCCESS")
 
     def reset_playback(self):
-        self.click_playback_btn(stop_playback=True)
+        if not self.calculate_total_already_played_track_seconds() > 3:
+            return
 
         try:
             song_back = WebDriverWait(self.driver, 20).until(
@@ -307,7 +337,21 @@ class SpotifyBotInstance:
         self.actions.click(element=song_back)
 
     def connect_to_device_actions(self):
-        pass
+        device_actions = self.actions.find_element_by_xpath(f"//span[@class='connect-device-picker']//button")
+
+        if device_actions is None:
+            return False
+
+        self.actions.click(element=device_actions)
+
+        device_to_pick = self.actions.find_element_by_xpath("//button[@class='media connect-device-list-item']")
+
+        if device_to_pick is None:
+            return False
+
+        self.actions.click(element=device_to_pick)
+
+        return True
 
     def login(self):
         """
@@ -619,7 +663,7 @@ class SpotifyBotInstance:
 
             MongoDBHelper().set_account_meta_data(self.account_meta_dict)
             self.debugged_print(
-                msg=f"Account {self.email}> Created the playlist \"{playlist_name}\" with a total of {added_song_amt} songs",
+                msg=f"Account {self.email}> Created the playlist \"{playlist_name}\" with a total of {len(used_songs)} songs",
                 status="SUCCESS")
             self.event_queue.put(ThreadSignals.CREATED_PLAYLIST)
 
@@ -741,6 +785,7 @@ class SpotifyBotInstance:
 
         deleted_tracks = 0
         for track_number, track in enumerate(tracks):
+            self.click_playback_btn(stop_playback=False)
             iteration_start_time = time.time()
             if self.account_meta_dict["account_plan"] == "Spotify Free":
                 self.wait_for_advertisement_to_finish()
@@ -803,9 +848,13 @@ class SpotifyBotInstance:
             if is_random(random.randint(5, 12)):
                 self.adjust_playback()
 
+            if is_random(random.randint(3, 6)):
+
+                if self.connect_to_device_actions():
+                    self.debugged_print(msg=f"Connected to a random device on Spotify", status="INFO", only_debug=True)
+
             play_not_full_song, sleep_time = self.calclulate_random_listening_time(track_total_seconds=self.calculate_total_track_seconds())
             time.sleep(sleep_time)
-            print("Finished the sleep")
 
             if play_not_full_song:
                 self.skip_song()
@@ -817,11 +866,8 @@ class SpotifyBotInstance:
             self.is_target_song(artist_name=song_artist, song_name=song_name)
 
             if is_random(random.randint(5, 8)):
-                self.click_playback_btn(stop_playback=True)
-                time.sleep(random.randint(2, 4))
-                self.wait_for_advertisement_to_finish()
                 self.debugged_print(msg=f"Randomly stopped listening to the playlist: {playlist_to_listen}", status="INFO")
-                return
+                break
 
         self.click_playback_btn(stop_playback=True)
         time.sleep(random.randint(2, 4))
@@ -837,6 +883,74 @@ class SpotifyBotInstance:
             self.debugged_print(msg=f"Hitted 1-2 % treshold to delete a random playlist after listening to a random playlist",status="INFO", only_debug=True)
             self.delete_playlist()
         return False
+
+    @requires_account_log_in(True)
+    @requires_specific_route(route=["/search"])
+    def listen_to_favorite_song_in_minimized_window(self):
+        """
+        Listens to account's favorite songs in a minimized window, it will get to the song using the hyperlink provided
+        by the artist or it will use the search bar and search for the song.
+        ----------------------------------------------------------------------------------------------------------------
+        :chances:
+            - [1-2%] quit the webdriver and stop all further actions after the action
+        ----------------------------------------------------------------------------------------------------------------
+        :return: bool
+            - bool: did a fatal exception occur? Or did the bot stopped earlier because it hit the 1-2 percent
+              treshhold ? -> (True/False)
+        """
+        self.reset_playback()
+        time.sleep(random.randint(1, 2))
+        self.click_playback_btn(stop_playback=True)
+
+        favorite_song = self.account_meta_dict["favorite_song"]["song_name"]
+        favorite_song_artist = self.account_meta_dict["favorite_song"]["song_artist"]
+
+        song_input_field = self.actions.find_element_by_xpath("//input[@data-testid='search-input']")
+
+        self.actions.legit_typing(element=song_input_field, text=f"{favorite_song} {favorite_song_artist}", clear_input_field=True)
+
+        total_iterations = random.randint(1, 5)
+        self.debugged_print(msg=f"Now listening to the favorite song \"{favorite_song}\" for {total_iterations}x time/s", status="INFO")
+        for iteration in range(total_iterations):
+            if not iteration:
+                self.click_repeat_song_btn(2)
+
+                search_results = self.actions.find_element_by_xpath("//div[@data-testid='tracklist-row']",
+                                                                    multiple_elements=True)
+
+                if search_results is None:
+                    self.debugged_print(msg=f"Couldn't find the favorite song \"{favorite_song}\"", status="ERROR")
+                    self.event_queue.put(ThreadSignals.ERROR)
+                    return False
+
+                for index, found_song in enumerate(search_results):
+                    if favorite_song_artist in found_song.text.splitlines()[1] and favorite_song in \
+                            found_song.text.splitlines()[0]:
+                        time.sleep(random.randint(1, 2))
+                        act = ActionChains(self.driver)
+                        act.move_to_element(found_song)
+                        act.perform()
+                        start_playback_btn = self.actions.find_element_by_xpath(
+                            "//div[@class='_9811afda86f707ead7da1d12f4dd2d3e-scss']//button", multiple_elements=True)[
+                            index]
+                        self.actions.click(element=start_playback_btn)
+                        print(f"Successfully started the playback for the song {favorite_song}")
+                        time.sleep(random.randint(2, 4))
+                        self.driver.minimize_window()
+                        break
+
+            print("Sleeping now")
+            time.sleep(random.randint(2, 3))
+            sleep_time = self.calculate_total_track_seconds() - self.calculate_total_already_played_track_seconds()
+            print(f"Sleep time: {sleep_time}")
+            time.sleep(sleep_time)
+
+        time.sleep(random.randint(2, 3))
+        self.click_playback_btn(stop_playback=True)
+        time.sleep(random.randint(2, 3))
+        self.reset_playback()
+        print("Finished")
+        self.driver.maximize_window()
 
     @requires_account_log_in(True)
     def explore_new_songs(self):
@@ -860,21 +974,6 @@ class SpotifyBotInstance:
             - [user-defined] mute playback for x seconds
             - [user-defined] heart a song
             - [user-defined] follow the artist of a explored song
-        ----------------------------------------------------------------------------------------------------------------
-        :return: bool
-            - bool: did a fatal exception occur? Or did the bot stopped earlier because it hit the 1-2 percent
-              treshhold ? -> (True/False)
-        """
-        pass
-
-    @requires_account_log_in(True)
-    def listen_to_favorite_song_in_minimized_window(self):
-        """
-        Listens to account's favorite songs in a minimized window, it will get to the song using the hyperlink provided
-        by the artist or it will use the search bar and search for the song.
-        ----------------------------------------------------------------------------------------------------------------
-        :chances:
-            - [1-2%] quit the webdriver and stop all further actions after the action
         ----------------------------------------------------------------------------------------------------------------
         :return: bool
             - bool: did a fatal exception occur? Or did the bot stopped earlier because it hit the 1-2 percent
@@ -931,28 +1030,10 @@ class GenerateWorkInstructions:
 
 if __name__ == '__main__':
     queue = queue.Queue()
-    instance = SpotifyBotInstance(account="spotify-account0002@protonmail.com:!rw@Qy!2%34wt4KZ",
+    instance = SpotifyBotInstance(account="spotify-account0002@protonmail.com:_5]38=\"95v)H}Wa'",
                                   event_queue=queue, parent=None, thread_id=1, debug=True, song_skipping_chance=10)
     instance.login()
     instance.initialization()
-    instance.listen_to_random_playlist()
-    instance.listen_to_random_playlist()
-    instance.listen_to_random_playlist()
-    instance.listen_to_random_playlist()
-    instance.listen_to_random_playlist()
-    instance.listen_to_random_playlist()
-    instance.listen_to_random_playlist()
-    instance.listen_to_random_playlist()
-    instance.listen_to_random_playlist()
-    instance.listen_to_random_playlist()
-    instance.listen_to_random_playlist()
-    instance.listen_to_random_playlist()
-    instance.listen_to_random_playlist()
-    instance.listen_to_random_playlist()
-    instance.listen_to_random_playlist()
-    instance.listen_to_random_playlist()
-    instance.listen_to_random_playlist()
-    instance.listen_to_random_playlist()
-    instance.listen_to_random_playlist()
+    instance.listen_to_favorite_song_in_minimized_window()
     while not queue.empty():
         print(queue.get())
