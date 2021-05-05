@@ -180,7 +180,7 @@ class SeleniumHelper(ModifiedActionChain):
 
         return element
 
-    def navigate_to_weplayer_from_overview_page(self):
+    def navigate_to_webplayer_from_overview_page(self):
         """
         This method doesn't really fit into this class but is used to navigate to the webplayer from the accounts
         overview page.
